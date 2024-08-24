@@ -2,6 +2,7 @@
 library(pbapply)
 library(XML)
 library(dplyr)
+library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(sf)
@@ -50,7 +51,9 @@ gpx_sf <- data.frame(
   lon         = coords["lon", ],
   ele         = as.numeric(elevation)
 ) %>% 
-  mutate(timestamps = ymd_hms(timestamps)) %>% 
+  mutate(timestamps = ymd_hms(timestamps),
+         week_lub   = week(timestamps),
+         year_lub   = year(timestamps)) %>% 
   st_as_sf(coords = c(x = "lon", y = "lat"), crs = 4326) 
 
 # Insert each into the list.
@@ -80,13 +83,23 @@ stats_df <- acts_sf %>%
   as_tibble() %>% 
   group_by(act_id) %>% 
   summarize(
-  total_mins  = as.numeric(max(test$timestamps)-min(test$timestamps)),
+  total_mins  = as.numeric(max(timestamps)-min(timestamps)),
   ele_gain    = sum(diff(ele)[diff(ele) > 0])
 ) %>% 
   left_join(acts_dist_df) %>%
   mutate(av_km_time = total_mins/total_km,
          act_id     = as.numeric(act_id)) %>% 
   mutate_if(is.numeric, function(x)round(x, 2))
+
+# Distances per week.
+acts_weeks_df <- acts_sf %>% 
+  as_tibble() %>% 
+  select(act_id, week_lub, year_lub) %>% 
+  right_join(acts_dist_df) %>% 
+  distinct() %>% 
+  group_by(week_lub, year_lub) %>% 
+  summarize(weekly_km = sum(total_km)) %>% 
+  ungroup()
 
 # Distribution of distances.
 ggplot(data = stats_df) +
@@ -98,19 +111,34 @@ ggplot(data = stats_df) +
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = total_mins), bins = 20, fill = "#fc4c02") +
   theme_minimal() +
-  labs(y = NULL, x = "Km")
+  labs(y = NULL, x = "Minutes")
 
 # Distribution of speed.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = av_km_time), bins = 30, fill = "#fc4c02") +
   theme_minimal() +
-  labs(y = NULL, x = "Km")
+  labs(y = NULL, x = "Km pace (minutes)")
 
 # Distribution of elevation gains.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = ele_gain), bins = 20, fill = "#fc4c02") +
   theme_minimal() +
-  labs(y = NULL, x = "Km")
+  labs(y = NULL, x = "Metres")
+
+# Weekly distance summary.
+acts_weeks_df %>% 
+  unite(col = "week_year", week_lub, year_lub) %>%
+  ggplot(data = .) +
+  geom_col(mapping = aes(x = week_year, y = weekly_km, group = 1),
+           fill = "#fc4c02") +
+  theme_minimal() +
+  labs(y = "Km", x = "Weeks") 
+  
+
+
+
+
+
 
 
 # Single activity elevation.
