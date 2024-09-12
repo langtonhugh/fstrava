@@ -6,8 +6,7 @@ library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(sf)
-library(maptiles)
-library(tidyterra)
+
 
 # Create list of all the gpx files that we have.
 file_names <- paste0(
@@ -23,6 +22,9 @@ raw_list <- pblapply(file_names, function(x){
 
 # How many activities do we have?
 length(raw_list)
+
+# Sample some for exploration.
+raw_list <- sample(raw_list, size = 10)
 
 # Function for extracting the relevant information.
 acts_clean <- list()
@@ -95,7 +97,8 @@ stats_df <- acts_sf %>%
   left_join(acts_dist_df) %>%
   mutate(av_km_time = total_mins/total_km,
          act_id     = as.numeric(act_id)) %>% 
-  mutate_if(is.numeric, function(x)round(x, 2))
+  # mutate_if(is.numeric, function(x)round(x, 2)) %>% 
+  arrange(start_time)
 
 # Single activity elevation.
 acts_sf %>% 
@@ -106,17 +109,27 @@ acts_sf %>%
   theme_minimal() +
   labs(y = "Elevation", x = "Time")
 
+# Single activity.
+df <- acts_sf %>% 
+  filter(act_id == 1) 
+
+cumul_dist <- cumsum(
+  c(st_distance(df[-1,], df[-nrow(df),], by_element=TRUE), NULL)
+)
+
+ggplot() +
+  geom_point(mapping = aes(x = 1:length(cumul_dist), y = cumul_dist))
+
 # Single activity map.
 act1_sf <- acts_sf %>% 
   filter(act_id == 1)
 
 # Obtain tiles.
-osm_posit <- get_tiles(act1_sf, provider = "CartoDB.Positron",
-                       crop = FALSE)
+osm_posit <- maptiles::get_tiles(act1_sf, provider = "CartoDB.Positron", crop = TRUE)
 
 # Plot.
 ggplot() +
-  geom_spatraster_rgb(data = osm_posit) +
+  tidyterra::geom_spatraster_rgb(data = osm_posit) +
   geom_sf(data = act1_sf,
           colour = "#fc4c02", linewidth = 0.1) +
   theme_void()

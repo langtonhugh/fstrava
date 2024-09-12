@@ -7,6 +7,9 @@ library(lubridate)
 library(ggplot2)
 library(sf)
 
+# Settings.
+theme_set(theme_minimal())
+
 # Create list of all the gpx files that we have.
 file_names <- paste0(
   "data/",
@@ -82,14 +85,16 @@ acts_dist_df <- acts_lines_sf %>%
 stats_df <- acts_sf %>% 
   as_tibble() %>% 
   group_by(act_id) %>% 
-  summarize(
-  total_mins  = as.numeric(max(timestamps)-min(timestamps)),
+  # summarize(
+  mutate(
+  total_mins  = as.numeric(max(timestamps)-min(timestamps))*60,
   ele_gain    = sum(diff(ele)[diff(ele) > 0])
 ) %>% 
+  filter(act_id == 158) %>%
   left_join(acts_dist_df) %>%
   mutate(av_km_time = total_mins/total_km,
-         act_id     = as.numeric(act_id)) %>% 
-  mutate_if(is.numeric, function(x)round(x, 2))
+         act_id     = as.numeric(act_id))# %>% 
+  # mutate_if(is.numeric, function(x)round(x, 2))
 
 # Distances per week.
 acts_weeks_df <- acts_sf %>% 
@@ -97,40 +102,45 @@ acts_weeks_df <- acts_sf %>%
   select(act_id, week_lub, year_lub) %>% 
   right_join(acts_dist_df) %>% 
   distinct() %>% 
+  bind_rows(
+  data.frame(
+    week_lub = setdiff(1:52, unique(.$week_lub)),
+    year_lub = sample(size = 1, .$year_lub),
+    weekly_km = 0
+  ) 
+  ) %>% 
   group_by(week_lub, year_lub) %>% 
   summarize(weekly_km = sum(total_km)) %>% 
-  ungroup()
+  ungroup() %>% 
+  complete(week_lub, year_lub, fill = list(weekly_km = 0))
 
 # Distribution of distances.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = total_km), bins = 16, fill = "#fc4c02") +
-  theme_minimal() +
   labs(y = NULL, x = "Km")
 
 # Distribution of time running.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = total_mins), bins = 20, fill = "#fc4c02") +
-  theme_minimal() +
   labs(y = NULL, x = "Minutes")
 
 # Distribution of speed.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = av_km_time), bins = 30, fill = "#fc4c02") +
-  theme_minimal() +
   labs(y = NULL, x = "Km pace (minutes)")
 
 # Distribution of elevation gains.
 ggplot(data = stats_df) +
   geom_histogram(mapping = aes(x = ele_gain), bins = 20, fill = "#fc4c02") +
-  theme_minimal() +
   labs(y = NULL, x = "Metres")
 
 # Weekly distance summary.
 acts_weeks_df %>% 
-  unite(col = "week_year", week_lub, year_lub) %>%
-  ggplot(data = .) +
-  geom_col(mapping = aes(x = week_year, y = weekly_km, group = 1),
-           fill = "#fc4c02") +
+  ggplot(data = .,
+         mapping = aes(x = week_lub, y = weekly_km, group = 1)) +
+  geom_point(colour = "#fc4c02") +
+  geom_line (colour = "#fc4c02") +
+  facet_wrap(~year_lub, ncol = 1) +
   theme_minimal() +
   labs(y = "Km", x = "Weeks") 
   
