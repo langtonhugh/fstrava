@@ -83,11 +83,15 @@ acts_dist_df <- acts_lines_sf %>%
 # Activity-level stats.
 stats_df <- acts_sf %>% 
   as_tibble() %>% 
-  group_by(act_id) %>% 
+  group_by(act_id, act_name) %>% 
   summarize(
-  total_mins  = as.numeric(max(timestamps)-min(timestamps)),
+    start_time = min(timestamps),
+    end_time   = max(timestamps),
+    total_mins = round(difftime(end_time, start_time, units = "mins"), 2),
+  # total_mins  = as.numeric(max(timestamps)-min(timestamps)),
   ele_gain    = sum(diff(ele)[diff(ele) > 0])
 ) %>% 
+  ungroup() %>% 
   left_join(acts_dist_df) %>%
   mutate(av_km_time = total_mins/total_km,
          act_id     = as.numeric(act_id)) %>% 
