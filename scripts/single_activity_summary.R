@@ -102,7 +102,7 @@ stats_df <- acts_sf %>%
 
 # Single activity elevation.
 acts_sf %>% 
-  filter(act_id == 1) %>% 
+  filter(act_id == 3) %>% 
   ggplot(data = .) +
   geom_line(mapping = aes(x = timestamps, y = ele, group = 1),
             colour = "#fc4c02", linewidth = 2) +

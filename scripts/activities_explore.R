@@ -81,20 +81,38 @@ acts_dist_df <- acts_lines_sf %>%
   as_tibble() %>% 
   select(-geometry) 
 
-# Activity-level stats.
-stats_df <- acts_sf %>% 
+# Explore timestamp mins.
+example <- acts_sf %>% 
+  as_tibble() %>% 
+  filter(act_id == 158)
+
+max(example$timestamps)-min(example$timestamps)
+
+duration(example$timestamps)
+
+# Ping-level data for every activity. 
+pings_df <- acts_sf %>% 
   as_tibble() %>% 
   group_by(act_id) %>% 
-  # summarize(
   mutate(
-  total_mins  = as.numeric(max(timestamps)-min(timestamps))*60,
-  ele_gain    = sum(diff(ele)[diff(ele) > 0])
+  act_time   = max(timestamps)-min(timestamps),
+  act_mins   = as.numeric(act_time, units = "mins"),
+  ele_gain   = sum(diff(ele)[diff(ele) > 0])
 ) %>% 
-  filter(act_id == 158) %>%
+  ungroup() %>% 
   left_join(acts_dist_df) %>%
-  mutate(av_km_time = total_mins/total_km,
-         act_id     = as.numeric(act_id))# %>% 
-  # mutate_if(is.numeric, function(x)round(x, 2))
+  mutate(av_km_time = act_mins/total_km,
+         act_id     = as.numeric(act_id))
+
+# Summary table example.
+sum_table_df <- pings_df %>% 
+  mutate(av_km_time = round(av_km_time, 2),
+         act_mins   = round(act_mins, 2),
+         ele_gain   = round(ele_gain, 0),
+         act_date = format(date(timestamps), "%d.%m.%y")) %>% 
+  select(act_id, act_date, act_name, act_mins, total_km, ele_gain, av_km_time) %>% 
+  distinct(act_id, .keep_all = TRUE) %>% 
+  arrange(act_id) 
 
 # Distances per week.
 acts_weeks_df <- acts_sf %>% 
