@@ -81,15 +81,6 @@ acts_dist_df <- acts_lines_sf %>%
   as_tibble() %>% 
   select(-geometry) 
 
-# Explore timestamp mins.
-example <- acts_sf %>% 
-  as_tibble() %>% 
-  filter(act_id == 158)
-
-max(example$timestamps)-min(example$timestamps)
-
-duration(example$timestamps)
-
 # Ping-level data for every activity. 
 pings_df <- acts_sf %>% 
   as_tibble() %>% 
@@ -114,8 +105,42 @@ sum_table_df <- pings_df %>%
   distinct(act_id, .keep_all = TRUE) %>% 
   arrange(act_id) 
 
+# Visuals to go alongside the table.
+# Handling.
+sum_visuals_df <- sum_table_df %>% 
+  select(-act_date, -act_name) %>% 
+  rename(`Time (mins)`   = act_mins,
+         `Distance (km)` = total_km,
+         `Elevation gain (metres)` = ele_gain,
+         `Km pace (mins)`          = av_km_time) %>% 
+  pivot_longer(cols = -act_id,
+               names_to = "measure",
+               values_to = "value")
+
+# Histograms.
+ggplot(data = sum_visuals_df) +
+  geom_histogram(mapping = aes(x = value), bins = 20, fill = "#fc4c02") +
+  facet_wrap(~measure, scales = "free", ncol = 4) +
+  labs(y = NULL, x = NULL) +
+  theme(
+    axis.text.y = element_blank()
+  )
+
+# More detailed plot.
+ggplot(data = sum_visuals_df) +
+  geom_jitter(mapping = aes(x = value, y = 0),
+               colour = "#fc4c02", alpha = 0.5) +
+  facet_wrap(~measure, scales = "free", nrow = 4) +
+  labs(y = NULL, x = NULL) +
+  theme(
+    axis.text.y = element_blank(),
+    panel.grid.major.y = element_blank()
+  ) 
+
+
+
 # Distances per week.
-acts_weeks_df <- acts_sf %>% 
+acts_weeks_df <- pings_df %>% 
   as_tibble() %>% 
   select(act_id, week_lub, year_lub) %>% 
   right_join(acts_dist_df) %>% 
@@ -132,25 +157,10 @@ acts_weeks_df <- acts_sf %>%
   ungroup() %>% 
   complete(week_lub, year_lub, fill = list(weekly_km = 0))
 
-# Distribution of distances.
-ggplot(data = stats_df) +
-  geom_histogram(mapping = aes(x = total_km), bins = 16, fill = "#fc4c02") +
-  labs(y = NULL, x = "Km")
 
-# Distribution of time running.
-ggplot(data = stats_df) +
-  geom_histogram(mapping = aes(x = total_mins), bins = 20, fill = "#fc4c02") +
-  labs(y = NULL, x = "Minutes")
 
-# Distribution of speed.
-ggplot(data = stats_df) +
-  geom_histogram(mapping = aes(x = av_km_time), bins = 30, fill = "#fc4c02") +
-  labs(y = NULL, x = "Km pace (minutes)")
 
-# Distribution of elevation gains.
-ggplot(data = stats_df) +
-  geom_histogram(mapping = aes(x = ele_gain), bins = 20, fill = "#fc4c02") +
-  labs(y = NULL, x = "Metres")
+
 
 # Weekly distance summary.
 acts_weeks_df %>% 
