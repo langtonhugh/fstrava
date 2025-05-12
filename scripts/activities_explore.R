@@ -5,6 +5,7 @@ library(dplyr)
 library(tidyr)
 library(lubridate)
 library(ggplot2)
+library(leaflet)
 library(sf)
 
 # Settings.
@@ -93,7 +94,8 @@ pings_df <- acts_sf %>%
   ungroup() %>% 
   left_join(acts_dist_df) %>%
   mutate(av_km_time = act_mins/total_km,
-         act_id     = as.numeric(act_id))
+         act_id     = as.numeric(act_id),
+         ping_id    = 1:nrow(.))
 
 # Summary table example.
 sum_table_df <- pings_df %>% 
@@ -126,33 +128,64 @@ ggplot(data = sum_visuals_df) +
     axis.text.y = element_blank()
   )
 
-# # Scatter plot of individual runs.
-# ggplot(data = sum_visuals_df) +
-#   geom_jitter(mapping = aes(x = value, y = 0),
-#                colour = "#fc4c02", alpha = 0.5) +
-#   facet_wrap(~measure, scales = "free", nrow = 4) +
-#   labs(y = NULL, x = NULL) +
-#   theme(
-#     axis.text.y = element_blank(),
-#     panel.grid.major.y = element_blank()
-#   ) 
+# Scatter plot of individual runs.
+ggplot(data = sum_visuals_df) +
+  geom_jitter(mapping = aes(x = value, y = 0),
+               colour = "#fc4c02", alpha = 0.5) +
+  facet_wrap(~measure, scales = "free", nrow = 4) +
+  labs(y = NULL, x = NULL) +
+  theme(
+    axis.text.y = element_blank(),
+    panel.grid.major.y = element_blank()
+  )
 
-# Single activity elevation.
-ggplot(data = gpx_sf) +
-  geom_line(mapping = aes(x = secs/60, y = ele, group = 1),
-            colour = "#fc4c02", linewidth = 2) +
+# Single activity visuals.
+act_i <- 1
+
+# elevation.
+pings_df %>% 
+  filter(act_id == act_i) %>%
+  ggplot(data = .) +
+  geom_line(mapping = aes(x = ping_id, y = ele, group = 1),
+            colour = "#fc4c02", linewidth = 1) +
   theme_minimal() +
-  labs(y = "Elevation", x = "Minutes")
-
-# Create a line out of the points.
-gpx_line_sf <- gpx_sf %>% 
-  group_by(act_name) %>% 
-  summarize(do_union=FALSE) %>% 
-  st_cast("LINESTRING") 
+  labs(y = "Elevation (metres)", x = NULL)
 
 # Single activity map.
-ggplot(data = gpx_line_sf) +
-  geom_sf(colour = "#fc4c02", linewidth = 1) +
-  theme_minimal()
+# First, create the linestrings from the points.
+acts_line_sf <- acts_sf %>% 
+  group_by(act_id) %>% 
+  summarize(do_union=FALSE) %>% 
+  st_cast("LINESTRING") %>% 
+  ungroup()
 
+# Second, obtain the osm layer.
+osm_posit <- get_tiles(
+  filter(acts_line_sf, act_id == act_i),
+  provider = "CartoDB.Positron",
+  crop = FALSE, zoom = 15
+  )
+
+# Map them out.
+acts_line_sf %>% 
+  filter(act_id == act_i) %>% 
+  ggplot(data = .) +
+  geom_spatraster_rgb(data = osm_posit) +
+  geom_sf(colour = "#fc4c02", linewidth = 1) +
+  theme_void()
+
+# Interactive map for single activity.
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron , group = "Positron (default)") %>%
+  addProviderTiles(providers$OpenStreetMap    , group = "Open Street Map") %>%
+  addProviderTiles(providers$Esri.WorldImagery, group = "World Imagery (satellite)") %>% 
+  addPolylines(data = acts_line_sf %>% 
+                 filter(act_id == act_i),
+               color = "#fc4c02") %>% 
+  addLayersControl(
+    baseGroups = c(
+      "Positron (default)",
+      "Open Street Map",
+      "World Imagery (satellite)"
+    ))
 
