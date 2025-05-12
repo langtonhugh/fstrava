@@ -126,58 +126,16 @@ ggplot(data = sum_visuals_df) +
     axis.text.y = element_blank()
   )
 
-# More detailed plot.
-ggplot(data = sum_visuals_df) +
-  geom_jitter(mapping = aes(x = value, y = 0),
-               colour = "#fc4c02", alpha = 0.5) +
-  facet_wrap(~measure, scales = "free", nrow = 4) +
-  labs(y = NULL, x = NULL) +
-  theme(
-    axis.text.y = element_blank(),
-    panel.grid.major.y = element_blank()
-  ) 
-
-
-
-# Distances per week.
-acts_weeks_df <- pings_df %>% 
-  as_tibble() %>% 
-  select(act_id, week_lub, year_lub) %>% 
-  right_join(acts_dist_df) %>% 
-  distinct() %>% 
-  bind_rows(
-  data.frame(
-    week_lub = setdiff(1:52, unique(.$week_lub)),
-    year_lub = sample(size = 1, .$year_lub),
-    weekly_km = 0
-  ) 
-  ) %>% 
-  group_by(week_lub, year_lub) %>% 
-  summarize(weekly_km = sum(total_km)) %>% 
-  ungroup() %>% 
-  complete(week_lub, year_lub, fill = list(weekly_km = 0))
-
-
-
-
-
-
-# Weekly distance summary.
-acts_weeks_df %>% 
-  ggplot(data = .,
-         mapping = aes(x = week_lub, y = weekly_km, group = 1)) +
-  geom_point(colour = "#fc4c02") +
-  geom_line (colour = "#fc4c02") +
-  facet_wrap(~year_lub, ncol = 1) +
-  theme_minimal() +
-  labs(y = "Km", x = "Weeks") 
-  
-
-
-
-
-
-
+# # Scatter plot of individual runs.
+# ggplot(data = sum_visuals_df) +
+#   geom_jitter(mapping = aes(x = value, y = 0),
+#                colour = "#fc4c02", alpha = 0.5) +
+#   facet_wrap(~measure, scales = "free", nrow = 4) +
+#   labs(y = NULL, x = NULL) +
+#   theme(
+#     axis.text.y = element_blank(),
+#     panel.grid.major.y = element_blank()
+#   ) 
 
 # Single activity elevation.
 ggplot(data = gpx_sf) +
