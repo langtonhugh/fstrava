@@ -204,7 +204,7 @@ ggsave(filename = "blog_material/static_map.png",
        height = 10, width = 6, unit = "cm", dpi = 300)
 
 # Interactive map for single activity.
-leaflet() %>%
+single_leaf <- leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron , group = "Positron (default)") %>%
   addProviderTiles(providers$OpenStreetMap    , group = "Open Street Map") %>%
   addProviderTiles(providers$Esri.WorldImagery, group = "World Imagery (satellite)") %>% 
@@ -217,4 +217,9 @@ leaflet() %>%
       "Open Street Map",
       "World Imagery (satellite)"
     ))
+
+# Save it to embed in website.
+htmlwidgets::saveWidget(single_leaf, file = "blog_material/single_leaf.html")
+
+
 
