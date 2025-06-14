@@ -6,6 +6,8 @@ library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(leaflet)
+library(maptiles)
+library(tidyterra)
 library(sf)
 
 # Settings.
@@ -65,6 +67,9 @@ acts_clean[[i]] <- gpx_sf
 
 }
 
+# Save an example element for the blog post.
+write.csv(x = acts_clean[[1]], file = "blog_material/element_example.csv")
+
 # Bind together for broad summaries, then filter for runs only.
 acts_sf <- bind_rows(acts_clean, .id = "act_id") %>% 
   filter(act_type == "running")
@@ -107,6 +112,9 @@ sum_table_df <- pings_df %>%
   distinct(act_id, .keep_all = TRUE) %>% 
   arrange(act_id) 
 
+# Save summary for blog post.
+write.csv(x = sum_table_df, file = "blog_material/sum_table.csv")
+
 # Visuals to go alongside the table.
 # Handling.
 sum_visuals_df <- sum_table_df %>% 
@@ -128,6 +136,10 @@ ggplot(data = sum_visuals_df) +
     axis.text.y = element_blank()
   )
 
+# Save for blog post.
+ggsave(filename = "blog_material/histograms.png",
+       height = 8, width = 16, unit = "cm", dpi = 300)
+
 # Scatter plot of individual runs.
 ggplot(data = sum_visuals_df) +
   geom_jitter(mapping = aes(x = value, y = 0),
@@ -138,6 +150,10 @@ ggplot(data = sum_visuals_df) +
     axis.text.y = element_blank(),
     panel.grid.major.y = element_blank()
   )
+
+# Save for blog post.
+ggsave(filename = "blog_material/scatter.png",
+       height = 16, width = 10, unit = "cm", dpi = 300)
 
 # Single activity visuals.
 act_i <- 1
@@ -150,6 +166,10 @@ pings_df %>%
             colour = "#fc4c02", linewidth = 1) +
   theme_minimal() +
   labs(y = "Elevation (metres)", x = NULL)
+
+# Save example for blog post.
+ggsave(filename = "blog_material/elevation.png",
+       height = 8, width = 12, unit = "cm", dpi = 300)
 
 # Single activity map.
 # First, create the linestrings from the points.
@@ -166,13 +186,22 @@ osm_posit <- get_tiles(
   crop = FALSE, zoom = 15
   )
 
-# Map them out.
-acts_line_sf %>% 
+# Map them out. First we subset to get the label.
+act1_sf <- acts_line_sf %>% 
   filter(act_id == act_i) %>% 
-  ggplot(data = .) +
+  mutate(act_id = as.numeric(act_id)) %>% 
+  left_join(sum_table_df, by = "act_id") # get info back.
+
+# Map it out.
+ggplot(data = act1_sf) +
   geom_spatraster_rgb(data = osm_posit) +
   geom_sf(colour = "#fc4c02", linewidth = 1) +
+  labs(title    = "An example activity") +
   theme_void()
+
+# Save map for post.
+ggsave(filename = "blog_material/static_map.png",
+       height = 10, width = 6, unit = "cm", dpi = 300)
 
 # Interactive map for single activity.
 leaflet() %>%

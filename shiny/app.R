@@ -1,58 +1,196 @@
-# Load packages.
-library(shiny)
-library(bslib)
-library(XML)
+### Data handling. ==================
 
-# Define UI for app that draws a histogram ----
-ui <- page_sidebar(
-  # App title ----
-  title = "fstrava",
-  # Sidebar panel for inputs ----
-  sidebar = sidebar(
-    # Input: Slider for the number of bins ----
-    sliderInput(
-      inputId = "bins",
-      label = "Number of bins:",
-      min = 5,
-      max = 50,
-      value = 30
-    )
-  ),
-  # Output: Histogram ----
-  plotOutput(outputId = "distPlot")
+# Load libraries.
+library(DT)
+library(shiny)
+library(pbapply)
+library(XML)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+library(leaflet)
+library(maptiles)
+library(tidyterra)
+library(sf)
+
+# Settings.
+theme_set(theme_minimal())
+
+# Create list of all the gpx files that we have.
+file_names <- paste0(
+  "../data/",
+  list.files("../data", pattern = glob2rx("*.gpx"))
 )
 
-# Define server logic required to draw a histogram ----
-server <- function(input, output) {
+# Read them all into a list.
+raw_list <- pblapply(file_names, function(x){
+  htmlTreeParse(file = x, useInternalNodes = TRUE)
+}
+)
+
+# How many activities do we have?
+length(raw_list)
+
+# Function for extracting the relevant information.
+acts_clean <- list()
+
+for (i in seq_along(raw_list)){
   
-  # Histogram of the Old Faithful Geyser Data ----
-  # with requested number of bins
-  # This expression that generates a histogram is wrapped in a call
-  # to renderPlot to indicate that:
-  #
-  # 1. It is "reactive" and therefore should be automatically
-  #    re-executed when inputs (input$bins) change
-  # 2. Its output type is a plot
-  output$distPlot <- renderPlot({
-    
-    # Load in example gpx file.
-    gpx_df <- htmlTreeParse(file = "data/4779803360.gpx", useInternalNodes = TRUE)
-    
-    # Extract elevation.
-    elevation <- xpathSApply(doc = gpx_df, path = "//trkpt/ele", fun = xmlValue)
-    
-    x    <- as.numeric(elevation)
-    bins <- seq(min(x), max(x), length.out = input$bins + 1)
-    
-    hist(x, breaks = bins, col = "#fc4c02", border = "white",
-         xlab = "Elevation",
-         main = "Histogram of elevation during a single run.")
-    
-    
-    
-  })
+  # Extract name.
+  name <- xpathSApply(doc = raw_list[[i]], path = "//trk/name", fun = xmlValue)
+  
+  # Extract type.
+  type <- xpathSApply(doc = raw_list[[i]], path = "//trk/type", fun = xmlValue)
+  
+  # Extract coords.
+  coords <- xpathSApply(doc = raw_list[[i]], path = "//trkpt", fun = xmlAttrs)
+  
+  # Extract elevation.
+  elevation <- xpathSApply(doc = raw_list[[i]], path = "//trkpt/ele", fun = xmlValue)
+  
+  # Extract time.
+  time <- xpathSApply(doc = raw_list[[i]], path = "//trkpt/time", fun = xmlValue)
+  
+  # Extract information into a dataframe.
+  gpx_sf <- data.frame(
+    act_name    = name,
+    act_type    = type,
+    timestamps  = time,
+    lat         = coords["lat", ],
+    lon         = coords["lon", ],
+    ele         = as.numeric(elevation)
+  ) %>% 
+    mutate(timestamps = ymd_hms(timestamps),
+           week_lub   = week(timestamps),
+           year_lub   = year(timestamps)) %>% 
+    st_as_sf(coords = c(x = "lon", y = "lat"), crs = 4326) 
+  
+  # Insert each into the list.
+  acts_clean[[i]] <- gpx_sf
   
 }
 
-# Call the app.
-shinyApp(ui = ui, server = server)
+# Bind together for broad summaries, then filter for runs only.
+acts_sf <- bind_rows(acts_clean, .id = "act_id") %>% 
+  filter(act_type == "running")
+
+# Convert coords to lines.
+acts_lines_sf <- acts_sf %>% 
+  group_by(act_id) %>% 
+  summarize(do_union=FALSE) %>% 
+  st_cast("LINESTRING") %>% 
+  ungroup() 
+
+# Create df of the distances.
+acts_dist_df <- acts_lines_sf %>% 
+  mutate(total_km = round(as.numeric(st_length(.)/1000), 2)) %>% 
+  as_tibble() %>% 
+  select(-geometry) 
+
+# Ping-level data for every activity. 
+pings_df <- acts_sf %>% 
+  as_tibble() %>% 
+  group_by(act_id) %>% 
+  mutate(
+    act_time   = max(timestamps)-min(timestamps),
+    act_mins   = as.numeric(act_time, units = "mins"),
+    ele_gain   = sum(diff(ele)[diff(ele) > 0])
+  ) %>% 
+  ungroup() %>% 
+  left_join(acts_dist_df) %>%
+  mutate(av_km_time = act_mins/total_km,
+         act_id     = as.numeric(act_id),
+         ping_id    = 1:nrow(.))
+
+# Summary table example.
+sum_table_df <- pings_df %>% 
+  mutate(av_km_time = round(av_km_time, 2),
+         act_mins   = round(act_mins, 2),
+         ele_gain   = round(ele_gain, 0),
+         act_date = format(date(timestamps), "%d.%m.%y")) %>% 
+  select(act_id, act_date, act_name, act_mins, total_km, ele_gain, av_km_time) %>% 
+  distinct(act_id, .keep_all = TRUE) %>% 
+  arrange(act_id) 
+
+# Visuals to go alongside the table.
+# Handling.
+sum_visuals_df <- sum_table_df %>% 
+  select(-act_date, -act_name) %>% 
+  rename(`Time (mins)`   = act_mins,
+         `Distance (km)` = total_km,
+         `Elevation gain (metres)` = ele_gain,
+         `Km pace (mins)`          = av_km_time) %>% 
+  pivot_longer(cols = -act_id,
+               names_to = "measure",
+               values_to = "value")
+
+# Single activity map.
+# First, create the linestrings from the points.
+acts_line_sf <- acts_sf %>% 
+  group_by(act_id) %>% 
+  summarize(do_union=FALSE) %>% 
+  st_cast("LINESTRING") %>% 
+  ungroup()
+
+# Second, obtain the osm layer.
+osm_posit <- get_tiles(
+  filter(acts_line_sf, act_id == act_i),
+  provider = "CartoDB.Positron",
+  crop = FALSE, zoom = 15
+)
+
+### Shiny settings ==================
+
+ui <- fluidPage(
+  titlePanel("Activity Viewer"),
+  fluidRow(
+    column(
+      width = 4,
+      DTOutput("activity_table")
+    ),
+    column(
+      width = 8,
+      leafletOutput("activity_map", height = 600)
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  # Replace with your real data
+  table_data <- sum_table_df          # Replace with your actual table
+  spatial_data <- acts_line_sf   # Replace with your actual sf object
+  
+  output$activity_table <- renderDT({
+    datatable(table_data, selection = "single", rownames = FALSE)
+  })
+  
+  output$activity_map <- renderLeaflet({
+    leaflet() %>%
+      addTiles()
+  })
+  
+  observeEvent(input$activity_table_rows_selected, {
+    selected_row <- input$activity_table_rows_selected
+    if (length(selected_row) == 0) return()
+    
+    selected_name <- table_data$activity_name[selected_row]
+    selected_geom <- spatial_data[spatial_data$activity_name == selected_name, ]
+    
+  leafletProxy("activity_map")
+      addProviderTiles(providers$CartoDB.Positron , group = "Positron (default)") %>%
+      addProviderTiles(providers$OpenStreetMap    , group = "Open Street Map") %>%
+      addProviderTiles(providers$Esri.WorldImagery, group = "World Imagery (satellite)") %>% 
+      addPolylines() %>% 
+      addLayersControl(
+        baseGroups = c(
+          "Positron (default)",
+          "Open Street Map",
+          "World Imagery (satellite)"
+        ))    
+    
+
+  })
+}
+
+shinyApp(ui, server)
