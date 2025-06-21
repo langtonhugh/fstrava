@@ -108,9 +108,10 @@ sum_table_df <- pings_df %>%
          act_mins   = round(act_mins, 2),
          ele_gain   = round(ele_gain, 0),
          act_date = format(date(timestamps), "%d.%m.%y")) %>% 
+  arrange(timestamps) %>% 
   select(act_id, act_date, act_name, act_mins, total_km, ele_gain, av_km_time) %>% 
-  distinct(act_id, .keep_all = TRUE) %>% 
-  arrange(act_id) 
+  distinct(act_id, .keep_all = TRUE)  
+
 
 # Save summary for blog post.
 write.csv(x = sum_table_df, file = "blog_material/sum_table.csv")
@@ -153,18 +154,18 @@ ggplot(data = sum_visuals_df) +
 
 # Save for blog post.
 ggsave(filename = "blog_material/scatter.png",
-       height = 16, width = 10, unit = "cm", dpi = 300)
-
-# Single activity visuals.
-act_i <- 1
+       height = 12, width = 8, unit = "cm", dpi = 300)
 
 # elevation.
 pings_df %>% 
-  filter(act_id == act_i) %>%
+  filter(act_name == "Hill climber ") %>% # Name has to be distinct!
   ggplot(data = .) +
-  geom_line(mapping = aes(x = ping_id, y = ele, group = 1),
-            colour = "#fc4c02", linewidth = 1) +
+  geom_ribbon(mapping = aes(x = ping_id, ymin = min(ele)*0.5, ymax = ele, group = 1),
+              fill = "#fc4c02", linewidth = 1) +
   theme_minimal() +
+  theme(
+    axis.text.x = element_blank()
+  ) +
   labs(y = "Elevation (metres)", x = NULL)
 
 # Save example for blog post.
@@ -185,6 +186,9 @@ osm_posit <- get_tiles(
   provider = "CartoDB.Positron",
   crop = FALSE, zoom = 15
   )
+
+# Single activity selection for examples.
+act_i <- 1
 
 # Map them out. First we subset to get the label.
 act1_sf <- acts_line_sf %>% 
