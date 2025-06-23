@@ -154,7 +154,7 @@ ggplot(data = sum_visuals_df) +
 
 # Save for blog post.
 ggsave(filename = "blog_material/scatter.png",
-       height = 16, width = 8, unit = "cm", dpi = 300)
+       height = 14, width = 8, unit = "cm", dpi = 300)
 
 # elevation.
 pings_df %>% 
