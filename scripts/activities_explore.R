@@ -180,6 +180,9 @@ acts_line_sf <- acts_sf %>%
   st_cast("LINESTRING") %>% 
   ungroup()
 
+# Single activity selection for examples.
+act_i <- 1
+
 # Second, obtain the osm layer.
 osm_posit <- get_tiles(
   filter(acts_line_sf, act_id == act_i),
@@ -187,28 +190,27 @@ osm_posit <- get_tiles(
   crop = FALSE, zoom = 15
   )
 
-# Single activity selection for examples.
-act_i <- 1
-
 # Map them out. First we subset to get the label.
 act1_sf <- acts_line_sf %>% 
   filter(act_id == act_i) %>% 
   mutate(act_id = as.numeric(act_id)) %>% 
   left_join(sum_table_df, by = "act_id") # get info back.
 
+# Save bits for blog post.
+st_write(obj = act1_sf, dsn = "blog_material/acts_sf.gpkg")
+
 # Map it out.
 ggplot(data = act1_sf) +
   geom_spatraster_rgb(data = osm_posit) +
   geom_sf(colour = "#fc4c02", linewidth = 1) +
-  labs(title    = "An example activity") +
   theme_void()
 
 # Save map for post.
 ggsave(filename = "blog_material/static_map.png",
-       height = 10, width = 6, unit = "cm", dpi = 300)
+       height = 8, width = 5, unit = "cm", dpi = 300)
 
 # Interactive map for single activity.
-single_leaf <- leaflet() %>%
+leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron , group = "Positron (default)") %>%
   addProviderTiles(providers$OpenStreetMap    , group = "Open Street Map") %>%
   addProviderTiles(providers$Esri.WorldImagery, group = "World Imagery (satellite)") %>% 
@@ -221,9 +223,6 @@ single_leaf <- leaflet() %>%
       "Open Street Map",
       "World Imagery (satellite)"
     ))
-
-# Save it to embed in website.
-htmlwidgets::saveWidget(single_leaf, file = "blog_material/single_leaf.html")
 
 
 

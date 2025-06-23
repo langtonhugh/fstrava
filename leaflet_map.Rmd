@@ -6,6 +6,9 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
 ```
 
+This is just a code chunk and `leafet` map for a demo. It will work to expand the existing script on [fstrava](https://github.com/langtonhugh/fstrava/blob/main/scripts/activities_explore.R).
+
+
 ```{r leafletmap, out.width="900px"}
 # Load libraries.
 library(pbapply)
@@ -152,8 +155,9 @@ act1_sf <- acts_line_sf %>%
   filter(act_id == act_i) %>% 
   mutate(act_id = as.numeric(act_id)) %>% 
   left_join(sum_table_df, by = "act_id") # get info back.
+```
 
-# Interactive map for single activity.
+```{r, echo = T}
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron , group = "Positron (default)") %>%
   addProviderTiles(providers$OpenStreetMap    , group = "Open Street Map") %>%
