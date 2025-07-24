@@ -130,7 +130,7 @@ sum_visuals_df <- sum_table_df %>%
 
 # Histograms.
 ggplot(data = sum_visuals_df) +
-  geom_histogram(mapping = aes(x = value), bins = 20, fill = "#fc4c02") +
+  geom_histogram(mapping = aes(x = value), bins = 10, fill = "#fc4c02") +
   facet_wrap(~measure, scales = "free", ncol = 4) +
   labs(y = NULL, x = NULL) +
   theme(
@@ -139,7 +139,7 @@ ggplot(data = sum_visuals_df) +
 
 # Save for blog post.
 ggsave(filename = "blog_material/histograms.png",
-       height = 8, width = 16, unit = "cm", dpi = 300)
+       height = 5, width = 16, unit = "cm", dpi = 300)
 
 # Scatter plot of individual runs.
 ggplot(data = sum_visuals_df) +
