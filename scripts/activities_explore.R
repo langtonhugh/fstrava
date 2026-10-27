@@ -109,25 +109,38 @@ sum_table_df <- pings_df %>%
          ele_gain   = round(ele_gain, 0),
          act_date = format(date(timestamps), "%d.%m.%y")) %>% 
   arrange(timestamps) %>% 
-  select(act_id, act_date, act_name, act_mins, total_km, ele_gain, av_km_time) %>% 
+  select(act_id, act_date, timestamps, act_name, act_mins, total_km, ele_gain, av_km_time) %>% 
   distinct(act_id, .keep_all = TRUE)  
 
-
 # Save summary for blog post.
-write.csv(x = sum_table_df, file = "blog_material/sum_table.csv")
+sum_table_df %>% 
+  select(-timestamps) %>%
+  write.csv(x = , file = "blog_material/sum_table.csv")
+
+# Save summary with the timestamp for shiny app.
+write.csv(x = sum_table_df, file = "shiny_material/sum_table_shiny.csv")
 
 # Visuals to go alongside the table.
 # Handling.
-sum_visuals_df <- sum_table_df %>% 
-  select(-act_date, -act_name) %>% 
-  rename(`Time (mins)`   = act_mins,
-         `Distance (km)` = total_km,
-         `Elevation gain (metres)` = ele_gain,
-         `Km pace (mins)`          = av_km_time) %>% 
+measures_df <- sum_table_df %>% 
+  select(-act_date, -act_name, -timestamps) %>% 
   pivot_longer(cols = -act_id,
                names_to = "measure",
                values_to = "value")
 
+# Save for shiny app.
+write.csv(x = measures_df, file = "shiny_material/measures_shiny.csv")
+
+# Rename for the histos.
+sum_visuals_df <- measures_df %>% 
+  mutate(measure = recode(measure,
+                          act_mins = "Time (mins)" ,
+                          total_km = "Distance (km)"  ,
+                          ele_gain = "Elevation gain (metres)" ,
+                          av_km_time = "Km pace (mins)"
+                          ) 
+  )
+ 
 # Histograms.
 ggplot(data = sum_visuals_df) +
   geom_histogram(mapping = aes(x = value), bins = 10, fill = "#fc4c02") +

@@ -1,6 +1,7 @@
 # Ignore gpx files for now.
 data/*.gpx
 data/*.gz
+data/fitotrack*
 
 # History files
 .Rhistory
